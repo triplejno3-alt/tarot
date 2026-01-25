@@ -28,8 +28,7 @@
 
 1. **克隆项目**
    ```bash
-   git clone https://github.com/your-username/mystic-tarot.git
-   cd mystic-tarot
+   git clone https://gitee.com/rickif/tarot.git
    ```
 
 2. **启动**
