@@ -934,6 +934,14 @@
                     // Reveal animation
                     setTimeout(() => {
                         card.classList.add('flipped');
+                        // Add reversed visual if needed
+                        if (picked.reversed) {
+                            // Find the front face and rotate it
+                            const front = card.querySelector('.card-front');
+                            if (front) {
+                                front.style.transform = 'rotateX(180deg)'; // Flip upside down
+                            }
+                        }
                     }, i * 500 + 500); // Staggered reveal
                 }
                 
