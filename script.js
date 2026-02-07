@@ -746,6 +746,12 @@ async function init() {
     document.getElementById('settings-btn').onclick = () => document.getElementById('settings-modal').style.display = 'block';
     document.getElementById('close-settings-btn').onclick = () => document.getElementById('settings-modal').style.display = 'none';
     document.getElementById('save-settings-btn').onclick = () => { localStorage.setItem('deepseek_token', document.getElementById('api-token-input').value); document.getElementById('settings-modal').style.display = 'none'; };
+    
+    // Set default API key if not already present
+    const defaultKey = "sk-88187d22e75f4b2fbb094e11963edf6f";
+    if (!localStorage.getItem('deepseek_token')) {
+        localStorage.setItem('deepseek_token', defaultKey);
+    }
     document.getElementById('api-token-input').value = localStorage.getItem('deepseek_token') || '';
     
     const startBtn = document.getElementById('start-btn');
