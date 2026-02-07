@@ -740,6 +740,26 @@ async function init() {
     const hands = new Hands({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
     hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.7, minTrackingConfidence: 0.7 });
     hands.onResults(res => { if (res.multiHandLandmarks && res.multiHandLandmarks[0]) handleGesture(res.multiHandLandmarks[0]); });
+
+    // Keyboard support
+    document.addEventListener('keydown', (e) => {
+        if (currentState !== STATE.PICKING) return;
+        
+        switch(e.key) {
+            case 'ArrowLeft':
+                velocity = -0.15;
+                break;
+            case 'ArrowRight':
+                velocity = 0.15;
+                break;
+            case 'Enter':
+            case ' ':
+                selectCard();
+                e.preventDefault(); // Prevent page scrolling with space
+                break;
+        }
+    });
+
     const camera = new Camera(video, { onFrame: async () => await hands.send({ image: video }), width: 320, height: 240 });
     camera.start().then(() => { cameraReady = true; updateIdleStatus(); }).catch(() => { cameraError = true; updateIdleStatus(); });
     
