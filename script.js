@@ -273,21 +273,20 @@ function shuffle(array) {
     return array;
 }
 
+let isClickPrevented = false; // Flag to distinguish drag from click
+
 function createCardElement(card, index) {
     const wrapper = document.createElement('div');
     wrapper.className = 'card-wrapper';
     wrapper.dataset.index = index;
-    wrapper.onclick = () => {
+    
+    wrapper.addEventListener('click', (e) => {
+        if (isClickPrevented || wrapper.classList.contains('picked')) return;
         if (currentState === STATE.PICKING) {
-            // If the card is already at or very close to the center, select it
-            if (Math.abs(index - currentIndex) < 0.5) {
-                selectCard();
-            } else {
-                // Otherwise move the focus to this card
-                currentIndex = index;
-            }
+            selectCard(index);
         }
-    };
+    });
+
     const inner = document.createElement('div');
     inner.className = 'card-inner';
     const back = document.createElement('div');
@@ -323,16 +322,24 @@ function updateCardPositions() {
     cards.forEach((card, i) => {
         const dist = i - currentIndex;
         if (Math.abs(dist) > visibleSideCount || card.classList.contains('picked')) {
-            card.style.display = 'none'; return;
+            card.style.display = 'none'; 
+            card.style.pointerEvents = 'none';
+            return;
         }
         card.style.display = 'block';
+        card.style.pointerEvents = 'auto'; // Re-enable for visible cards
+
         const x = dist * gap, z = -Math.pow(Math.abs(dist), 1.3) * 50;
         let rotateY = Math.max(-45, Math.min(45, dist * 5));
         let scale = Math.abs(dist) < 0.5 ? (isMobile ? 1.06 : 1.2) - Math.abs(dist) * (isMobile ? 0.22 : 0.4) : 1 - Math.min(Math.abs(dist) * 0.08, 0.4);
-        card.style.zIndex = Math.abs(dist) < 0.5 ? 1000 : 1000 - Math.floor(Math.abs(dist) * 10);
+        
+        // Push the selected card and its neighbors forward in Z space for easier clicking
+        const extraZ = Math.abs(dist) < 0.8 ? 100 : 0;
+        card.style.zIndex = Math.abs(dist) < 0.5 ? 2000 : 1000 - Math.floor(Math.abs(dist) * 10);
+        
         if (Math.round(currentIndex) === i) card.classList.add('selected'); else card.classList.remove('selected');
         if (isFistHeld && chargeTargetIndex === i) scale *= chargeExtraScale;
-        card.style.transform = `translateX(${x}px) translateZ(${z}px) rotateY(${rotateY}deg) scale(${scale})`;
+        card.style.transform = `translateX(${x}px) translateZ(${z + extraZ}px) rotateY(${rotateY}deg) scale(${scale})`;
     });
 }
 
@@ -445,7 +452,22 @@ function handleGesture(landmarks) {
 function gameLoop() {
     if (currentState === STATE.INTRO) {
         currentIndex += (Math.floor(currentDeck.length / 2) - currentIndex) * 0.05;
-        if (Math.abs(Math.floor(currentDeck.length / 2) - currentIndex) < 0.1) { currentIndex = Math.floor(currentDeck.length / 2); currentState = STATE.PICKING; document.getElementById('picked-zone').style.display = 'flex'; }
+        if (Math.abs(Math.floor(currentDeck.length / 2) - currentIndex) < 0.1) { 
+            currentIndex = Math.floor(currentDeck.length / 2); 
+            currentState = STATE.PICKING; 
+            document.getElementById('picked-zone').style.display = 'flex'; 
+            
+            // Show interaction guide
+            const guide = document.getElementById('interaction-guide');
+            if (guide) {
+                guide.style.display = 'block';
+                setTimeout(() => guide.style.opacity = '1', 100);
+                // Auto hide after 8 seconds if no card picked
+                setTimeout(() => {
+                    if (pickedCards.length === 0) hideInteractionGuide();
+                }, 8000);
+            }
+        }
         updateCardPositions();
     } else if (currentState === STATE.PICKING) {
         currentIndex = Math.max(0, Math.min(currentDeck.length - 1, currentIndex + velocity));
@@ -455,11 +477,56 @@ function gameLoop() {
     requestAnimationFrame(gameLoop);
 }
 
-function selectCard() {
-    const idx = Math.round(currentIndex);
-    if (idx < 0 || idx >= currentDeck.length || pickedCards.some(p => p.card.id === currentDeck[idx].id)) return;
+function hideInteractionGuide() {
+    const guide = document.getElementById('interaction-guide');
+    if (guide && guide.style.display !== 'none') {
+        guide.style.opacity = '0';
+        setTimeout(() => guide.style.display = 'none', 1000);
+    }
+}
+
+function findClosestValidCard() {
+    const wrappers = document.querySelectorAll('.card-wrapper:not(.picked)');
+    if (wrappers.length === 0) return;
+    
+    let closestIdx = -1;
+    let minDiff = Infinity;
+    
+    wrappers.forEach(el => {
+        const idx = parseInt(el.dataset.index);
+        const diff = Math.abs(idx - currentIndex);
+        if (diff < minDiff) {
+            minDiff = diff;
+            closestIdx = idx;
+        }
+    });
+    
+    if (closestIdx !== -1) {
+        currentIndex = closestIdx;
+    }
+}
+
+function selectCard(targetIdx = null) {
+    hideInteractionGuide();
+    
+    // Use provided index or fall back to rounded currentIndex
+    const idx = targetIdx !== null ? targetIdx : Math.round(currentIndex);
+    if (idx < 0 || idx >= currentDeck.length) return;
+    
+    const targetWrapper = document.querySelector(`.card-wrapper[data-index="${idx}"]`);
+
+    if (!targetWrapper || targetWrapper.classList.contains('picked')) {
+        if (targetIdx === null) {
+            findClosestValidCard();
+        }
+        return;
+    }
+
     const card = currentDeck[idx];
-    document.querySelectorAll('.card-wrapper').forEach(el => { if (parseInt(el.dataset.index) === idx) { el.classList.add('picked'); el.style.opacity = '0'; } });
+    targetWrapper.classList.add('picked');
+    targetWrapper.style.opacity = '0';
+    targetWrapper.style.pointerEvents = 'none';
+
     pickedCards.push({ card, reversed: Math.random() < 0.3, position: currentSpread.positions[pickedCards.length].name });
     
     // Update status text: keep question visible, show pick progress
@@ -762,7 +829,44 @@ async function init() {
 
     const camera = new Camera(video, { onFrame: async () => await hands.send({ image: video }), width: 320, height: 240 });
     camera.start().then(() => { cameraReady = true; updateIdleStatus(); }).catch(() => { cameraError = true; updateIdleStatus(); });
+
+    // Mouse interaction support for sliding AND clicking
+    let isMouseDown = false;
+    let dragDistance = 0;
+    let lastX = 0;
+    const sceneElement = document.getElementById('scene');
     
+    sceneElement.addEventListener('mousedown', (e) => {
+        if (currentState !== STATE.PICKING) return;
+        isMouseDown = true;
+        isClickPrevented = false; // Reset
+        dragDistance = 0;
+        lastX = e.clientX;
+    });
+
+    window.addEventListener('mousemove', (e) => {
+        if (!isMouseDown || currentState !== STATE.PICKING) return;
+        
+        const deltaX = e.clientX - lastX;
+        dragDistance += Math.abs(deltaX);
+        lastX = e.clientX;
+        
+        if (dragDistance > 8) {
+            isClickPrevented = true; // Mark as drag if significant movement
+        }
+
+        const moveScale = 0.005; 
+        currentIndex -= deltaX * moveScale;
+        velocity = -deltaX * moveScale * 0.5;
+    });
+
+    window.addEventListener('mouseup', (e) => {
+        isMouseDown = false;
+        // The flag will be used by the 'click' event on the card itself
+        // Resetting after a tiny delay ensures the click event sees the flag
+        setTimeout(() => { isClickPrevented = false; }, 50);
+    });
+
     document.getElementById('settings-btn').onclick = () => document.getElementById('settings-modal').style.display = 'block';
     document.getElementById('close-settings-btn').onclick = () => document.getElementById('settings-modal').style.display = 'none';
     document.getElementById('save-settings-btn').onclick = () => { localStorage.setItem('deepseek_token', document.getElementById('api-token-input').value); document.getElementById('settings-modal').style.display = 'none'; };

@@ -91,12 +91,23 @@
 
         <!-- Token Input Removed -->
 
-        <div id="gesture-guide">
-            <div id="zone-left" class="guide-zone">向右挥动 ➡</div>
-            <div id="zone-right" class="guide-zone">⬅ 向左挥动</div>
-            <div id="zone-center" class="guide-zone">
-                <div class="guide-icon" id="icon-select">✊</div>
-                <div style="font-size: 1rem; margin-top: 10px; text-shadow: 0 0 5px black;">握拳选牌</div>
+        <div id="interaction-guide" style="display:none; position: absolute; top: 70%; left: 50%; transform: translate(-50%, -50%); width: 100%; text-align: center; pointer-events: none; z-index: 1000; opacity: 0; transition: opacity 1s ease;">
+            <div style="background: rgba(0,0,0,0.7); display: inline-block; padding: 20px 40px; border-radius: 15px; border: 1px solid var(--accent-gold); backdrop-filter: blur(5px);">
+                <div style="color: var(--accent-gold); font-size: 1.1rem; margin-bottom: 15px; letter-spacing: 2px;">控制指南</div>
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 30px; color: #ccc; font-size: 0.9rem;">
+                    <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;">
+                        <span style="font-size: 1.5rem;">✋</span>
+                        <span>挥手滑动 / 握拳选牌</span>
+                    </div>
+                    <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;">
+                        <span style="font-size: 1.5rem;">🖱️</span>
+                        <span>拖拽滑动 / 点击选牌</span>
+                    </div>
+                    <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;">
+                        <span style="font-size: 1.5rem;">⌨️</span>
+                        <span>方向键滑动 / 空格选牌</span>
+                    </div>
+                </div>
             </div>
         </div>
 
