@@ -152,6 +152,28 @@ const STATE = {
 
 let currentState = STATE.ENTRANCE;
 let userQuestion = "";
+
+async function toggleCamera(active) {
+    if (!window._camera) return;
+    try {
+        if (active) {
+            await window._camera.start();
+            cameraReady = true;
+            cameraError = false;
+        } else {
+            await window._camera.stop();
+            cameraReady = false;
+            // Hide hand cursor and charge ring when camera is off
+            const cursor = document.getElementById('hand-cursor');
+            if (cursor) cursor.style.display = 'none';
+        }
+        updateIdleStatus();
+    } catch (e) {
+        console.error("Camera toggle error:", e);
+        cameraError = true;
+        updateIdleStatus();
+    }
+}
 let currentSpread = SPREADS.TIME_FLOW;
 let spreadSelectionIndex = 0;
 let currentIndex = 0;
@@ -509,40 +531,95 @@ function findClosestValidCard() {
 function selectCard(targetIdx = null) {
     hideInteractionGuide();
     
-    // Use provided index or fall back to rounded currentIndex
     const idx = targetIdx !== null ? targetIdx : Math.round(currentIndex);
     if (idx < 0 || idx >= currentDeck.length) return;
     
     const targetWrapper = document.querySelector(`.card-wrapper[data-index="${idx}"]`);
-
     if (!targetWrapper || targetWrapper.classList.contains('picked')) {
-        if (targetIdx === null) {
-            findClosestValidCard();
-        }
+        if (targetIdx === null) findClosestValidCard();
         return;
     }
 
     const card = currentDeck[idx];
+    const isReversed = Math.random() < 0.3;
+    const positionInfo = currentSpread.positions[pickedCards.length];
+    
     targetWrapper.classList.add('picked');
     targetWrapper.style.opacity = '0';
     targetWrapper.style.pointerEvents = 'none';
 
-    pickedCards.push({ card, reversed: Math.random() < 0.3, position: currentSpread.positions[pickedCards.length].name });
+    pickedCards.push({ card, reversed: isReversed, position: positionInfo.name });
     
-    // Update status text: keep question visible, show pick progress
     document.getElementById('status-text').innerText = `${userQuestion} (${pickedCards.length}/${currentSpread.cardCount})`;
     
     const slot = document.getElementById(`slot-${pickedCards.length - 1}`);
-    if (slot) { slot.classList.add('filled'); slot.innerHTML = '<div class="mini-card" style="background:rgba(212,175,55,0.5);display:flex;align-items:center;justify-content:center;font-size:2rem;color:white;">✦</div>'; }
-    if (pickedCards.length === currentSpread.cardCount) setTimeout(finishPicking, 1000);
+    if (slot) { 
+        slot.classList.add('filled'); 
+        const cnName = getCNName(card.name);
+        const orientation = isReversed ? '逆位' : '正位';
+        
+        slot.innerHTML = `
+            <div class="mini-card-container" style="width:100%; height:100%; perspective:800px; position:relative;">
+                <div class="mini-card-inner" style="width:100%; height:100%; position:absolute; transform-style:preserve-3d; transition:transform 1s cubic-bezier(0.4, 0, 0.2, 1); transform:rotateY(0deg);">
+                    <div class="mini-card-back" style="position:absolute; inset:0; backface-visibility:hidden; background:rgba(30,30,50,0.9); border:1px solid var(--accent-gold); border-radius:6px; display:flex; align-items:center; justify-content:center; color:var(--accent-gold); font-size:1.2rem; z-index:2;">✦</div>
+                    <div class="mini-card-front" style="position:absolute; inset:0; backface-visibility:hidden; transform:rotateY(180deg) ${isReversed ? 'rotateZ(180deg)' : ''}; background:#fff url('${card.img}') no-repeat center; background-size:cover; border-radius:6px; border:1px solid var(--accent-gold); z-index:1;"></div>
+                </div>
+                <div class="mini-card-label" style="position:absolute; bottom:-35px; left:50%; transform:translateX(-50%); width:max-content; text-align:center; font-size:0.85rem; color:var(--accent-gold); opacity:0; transition:opacity 0.5s; white-space:nowrap; text-shadow:0 0 5px black;">${positionInfo.name}: ${cnName} (${orientation})</div>
+            </div>
+        `;
+
+        // Trigger flip animation after a tiny delay
+        setTimeout(() => {
+            const inner = slot.querySelector('.mini-card-inner');
+            const label = slot.querySelector('.mini-card-label');
+            if (inner) inner.style.transform = 'rotateY(180deg)';
+            if (label) label.style.opacity = '1';
+        }, 50);
+    }
+    
+    if (pickedCards.length === currentSpread.cardCount) setTimeout(finishPicking, 600);
 }
 
 function finishPicking() {
-    currentState = STATE.REVEALING; document.getElementById('status-text').innerText = userQuestion;
-    document.getElementById('picked-zone').style.opacity = '0'; renderDeck();
-    setTimeout(() => {
+    currentState = STATE.REVEALING; 
+    document.getElementById('status-text').innerText = "三牌已定，正在感应神谕...";
+    
+    // 1. Move spread to center and zoom
+    const pickedZone = document.getElementById('picked-zone');
+    pickedZone.classList.add('zoomed-center');
+    
+    // 2. Clear background scene
+    scene.innerHTML = '';
+    
+    // 3. Show Mystic Loader
+    const loader = document.getElementById('mystic-loader');
+    if (loader) loader.style.display = 'flex';
+
+    // 4. Transition to Interpretation after some ritual time
+    setTimeout(async () => {
+        if (loader) loader.style.display = 'none';
+        
         currentState = STATE.INTERPRETING;
-        updateIdleStatus();
+        
+        // Stop camera when interpretation starts
+        await toggleCamera(false);
+
+        // Keep cards in center
+        // pickedZone.classList.remove('zoomed-center');
+        // pickedZone.classList.add('interpreting-top');
+        
+        // Keep game container size
+        // const gameContainer = document.getElementById('game-container');
+        // if (gameContainer) gameContainer.style.height = '40vh';
+
+        // Auto-trigger AI
+        const t = localStorage.getItem('deepseek_token');
+        if (t) {
+            getAIInterpretation(t);
+        } else {
+            document.getElementById('status-text').innerText = "神谕感应中断：请先配置 API Key";
+            updateIdleStatus();
+        }
     }, 2500);
 }
 
@@ -561,17 +638,21 @@ function startGame() {
     if (hint) {
         hint.innerText = "默念你的问题，开始抽取卡牌...";
         hint.classList.add('visible');
-        setTimeout(() => {
+        setTimeout(async () => {
             hint.classList.remove('visible');
+            // Start camera before intro
+            await toggleCamera(true);
             // After hint fades, start the card animation
             currentDeck = shuffle([...FULL_DECK]); pickedCards = [];
             currentState = STATE.INTRO; currentIndex = currentDeck.length + 5;
             renderDeck();
         }, 2500);
     } else {
-        currentDeck = shuffle([...FULL_DECK]); pickedCards = [];
-        currentState = STATE.INTRO; currentIndex = currentDeck.length + 5;
-        renderDeck();
+        toggleCamera(true).then(() => {
+            currentDeck = shuffle([...FULL_DECK]); pickedCards = [];
+            currentState = STATE.INTRO; currentIndex = currentDeck.length + 5;
+            renderDeck();
+        });
     }
 }
 
@@ -592,9 +673,9 @@ async function getAIInterpretation(token) {
     content.innerHTML = '正在连接命运之轮...';
     if (inlineContainer) inlineContainer.classList.add('visible');
     
-    // Smooth scroll to the interpretation area, a bit lower to clear labels
+    // Smooth scroll to the interpretation area, moved further down to clear the center cards
     window.scrollTo({
-        top: window.innerHeight * 0.55,
+        top: window.innerHeight * 0.75,
         behavior: 'smooth'
     });
     
@@ -659,6 +740,7 @@ function resetToNewQuestion() {
     
     // 5. Back to entrance/dialogue state
     currentState = STATE.ENTRANCE;
+    toggleCamera(false); // Ensure camera is off when resetting
     document.getElementById('entrance-scene').classList.remove('hidden');
     document.getElementById('entrance-scene').classList.remove('open');
     
@@ -828,7 +910,8 @@ async function init() {
     });
 
     const camera = new Camera(video, { onFrame: async () => await hands.send({ image: video }), width: 320, height: 240 });
-    camera.start().then(() => { cameraReady = true; updateIdleStatus(); }).catch(() => { cameraError = true; updateIdleStatus(); });
+    window._camera = camera; // Store camera instance globally for control
+    // camera.start().then(() => { cameraReady = true; updateIdleStatus(); }).catch(() => { cameraError = true; updateIdleStatus(); });
 
     // Mouse interaction support for sliding AND clicking
     let isMouseDown = false;

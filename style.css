@@ -483,25 +483,46 @@
         /* Picked Card Zone */
         #picked-zone {
             position: absolute;
-            bottom: 30px;
+            bottom: 40px;
             left: 50%;
             transform: translateX(-50%);
             display: none; /* Hidden initially */
-            gap: 20px;
-            z-index: 50;
+            gap: 30px;
+            z-index: 100;
             pointer-events: none;
+            transition: all 1.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        #picked-zone.zoomed-center {
+            bottom: 50%;
+            transform: translate(-50%, 50%) scale(1.8);
+            gap: 40px;
+        }
+
+        #picked-zone.interpreting-top {
+            bottom: 70%;
+            transform: translate(-50%, 0) scale(1.2);
+            gap: 25px;
         }
 
         .picked-slot {
             width: calc(var(--card-width) * 0.5);
             height: calc(var(--card-height) * 0.5);
-            border: 2px dashed rgba(212, 175, 55, 0.3);
+            border: 1px dashed rgba(212, 175, 55, 0.3);
             border-radius: 8px;
             display: flex;
             align-items: center;
             justify-content: center;
-            background: rgba(0,0,0,0.3);
-            transition: all 0.5s;
+            background: rgba(0,0,0,0.5);
+            transition: all 0.5s ease;
+            position: relative;
+        }
+
+        .picked-slot.filled {
+            border-style: solid;
+            border-color: var(--accent-gold);
+            box-shadow: 0 0 15px rgba(212,175,55,0.3);
+            background: rgba(0,0,0,0.7);
         }
 
         @media (max-width: 480px) {
@@ -533,6 +554,37 @@
         }
 
         /* Loading Spinner */
+        .mystic-loader {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 1000;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            pointer-events: none;
+        }
+
+        .loader-icon {
+            font-size: 3rem;
+            color: var(--accent-gold);
+            animation: mysticSpin 2s infinite cubic-bezier(0.4, 0, 0.2, 1), 
+                       loaderGlow 1.5s infinite alternate;
+        }
+
+        @keyframes mysticSpin {
+            0% { transform: rotate(0deg) scale(1); }
+            50% { transform: rotate(180deg) scale(1.2); }
+            100% { transform: rotate(360deg) scale(1); }
+        }
+
+        @keyframes loaderGlow {
+            from { text-shadow: 0 0 10px var(--accent-glow); opacity: 0.6; }
+            to { text-shadow: 0 0 30px var(--accent-gold); opacity: 1; }
+        }
+
         .spinner {
             border: 4px solid rgba(255, 255, 255, 0.1);
             width: 36px;
@@ -916,16 +968,21 @@
         /* Inline Interpretation Styles */
         .interpretation-inline {
             position: absolute;
-            top: 75vh; /* Pushed down to clear card labels */
+            top: 80vh; /* Moved further down to completely clear the cards in center */
             left: 50%;
             transform: translateX(-50%);
             width: min(800px, 90vw);
-            padding: 40px 20px 100px; /* Large bottom padding for scrolling space */
+            padding: 40px 30px 100px;
+            background: rgba(5, 5, 16, 0.85);
+            border: 1px solid rgba(212, 175, 55, 0.2);
+            border-radius: 20px;
+            backdrop-filter: blur(15px);
             color: #ddd;
             opacity: 0;
-            transition: opacity 1s ease;
+            transition: all 1s ease;
             pointer-events: none;
             z-index: 5;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.6);
         }
 
         .interpretation-inline.visible {
